@@ -59,31 +59,39 @@ assert.equal(r.turnoDe(br("22:00")), null);
   assert.equal(c.fora.total, 1);
 }
 console.log("ok");
-// Saldo: Micem fora da vez dá saldo e mantém o lugar; quem tem saldo é pulado e gasta quando a vez passa.
+// Saldo como vidas: Micem fora da vez dá saldo e mantém o lugar; quando a vez chega em quem
+// tem saldo, ele gasta 1 e vai para o fim na hora.
 {
   const s = r.estadoInicial(["A","B","C","D"]);
   const fila = () => r.visao(s).fila.map(t=>t.nome+(t.saldo?`(${t.saldo})`:"")).join(",");
   const prox = () => s.tecnicos.find(t=>t.id===r.proximo(s)).nome;
   r.acaoCentral(s,{tipo:"marcarFeita",tecnicoId:"t3"});            // C fora da vez
-  assert.equal(fila(),"A,B,C(1),D");
   r.acaoCentral(s,{tipo:"marcarFeita",tecnicoId:"t3"});            // C de novo
   assert.equal(fila(),"A,B,C(2),D");
   r.acaoCentral(s,{tipo:"marcarFeita",tecnicoId:"t1"});            // A na vez
-  r.acaoCentral(s,{tipo:"marcarFeita",tecnicoId:"t2"});            // B na vez
-  assert.equal(fila(),"C(2),D,A,B");
-  assert.equal(prox(),"D");                                       // C pulado pelo saldo
-  r.acaoCentral(s,{tipo:"marcarFeita",tecnicoId:"t4"});            // D na vez: C gasta 1
-  assert.equal(fila(),"A,B,C(1),D");
-  assert.equal(prox(),"A");
-  // Contador por turno ignora o uso de saldo: 5 Micens de verdade.
+  assert.equal(fila(),"B,C(2),D,A");
+  r.acaoCentral(s,{tipo:"marcarFeita",tecnicoId:"t2"});            // B na vez: chega a vez de C, que gasta 1
+  assert.equal(fila(),"D,A,B,C(1)");
+  assert.equal(prox(),"D");
+  for (const id of ["t4","t1","t2"]) r.acaoCentral(s,{tipo:"marcarFeita",tecnicoId:id});
+  assert.equal(fila(),"D,A,B,C");                                  // C gastou a segunda vida
+  // Contador por turno ignora o uso de saldo: 7 Micens de verdade.
   const c = r.contagemTurnos(s);
-  assert.equal(c.turnos.reduce((a,t)=>a+t.total,0)+c.fora.total, 5);
-  // Ajuste manual pelo Mr. Micem, sem ficar negativo.
-  r.acaoCentral(s,{tipo:"saldo",tecnicoId:"t3",delta:-1});
+  assert.equal(c.turnos.reduce((a,t)=>a+t.total,0)+c.fora.total, 7);
+  // + saldo para quem é o próximo: gasta na hora e a vez passa.
+  r.acaoCentral(s,{tipo:"saldo",tecnicoId:"t4",delta:1});
+  assert.equal(fila(),"A,B,C,D");
+  assert.equal(prox(),"A");
+  // Ajuste manual não fica negativo.
   r.acaoCentral(s,{tipo:"saldo",tecnicoId:"t3",delta:-1});
   assert.equal(fila(),"A,B,C,D");
-  // Todos os presentes com saldo: o primeiro presente é o próximo.
-  for (const id of ["t1","t2","t3","t4"]) r.acaoCentral(s,{tipo:"saldo",tecnicoId:id,delta:1});
-  assert.equal(prox(),"A");
+  // Todos os presentes com saldo: ninguém gasta e o primeiro é o próximo.
+  for (const id of ["t2","t3","t4","t1"]) r.acaoCentral(s,{tipo:"saldo",tecnicoId:id,delta:1});
+  assert.equal(prox(),r.visao(s).fila[0].nome);
+  // Ausente com saldo não gasta; quem está ausente é pulado sem perder vida.
+  const s2 = r.estadoInicial(["A","B","C"]);
+  r.acaoCentral(s2,{tipo:"ausencia",tecnicoId:"t1",ausencia:"momento"});
+  r.acaoCentral(s2,{tipo:"saldo",tecnicoId:"t1",delta:1});
+  assert.equal(r.visao(s2).fila.map(t=>t.nome+t.saldo).join(","),"A1,B0,C0");
 }
 console.log("saldo ok");
