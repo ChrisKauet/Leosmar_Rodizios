@@ -35,7 +35,7 @@ async function lerEstado(store) {
 // Lê, aplica a ação e grava só se ninguém gravou no meio. Tenta de novo em caso de conflito.
 async function aplicar(store, fn) {
   for (let tentativa = 0; tentativa < 5; tentativa++) {
-    const { estado, etag } = await lerEstado(loja());
+    const { estado, etag } = await lerEstado(store);
     const novo = fn(estado);
     const r = etag
       ? await store.setJSON(CHAVE, novo, { onlyIfMatch: etag })
