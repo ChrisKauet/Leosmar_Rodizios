@@ -66,6 +66,16 @@
   dialog::backdrop { background: rgba(0,0,0,.4); }
   dialog h3 { margin: 0 0 12px; }
   dialog input { width: 100%; margin-bottom: 10px; }
+  .tela[hidden] { display: none; }
+  .selecao { max-width: 640px; text-align: center; padding-top: 32px; }
+  .selecao h2 { font-size: 26px; margin: 0; }
+  .selecao .sub { color: var(--muted); margin: 6px 0 20px; }
+  .grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .grade button { padding: 20px 12px; border-radius: 12px; font-size: 17px; font-weight: 600; word-break: break-word; }
+  .grade button .det { display: block; font-size: 12px; font-weight: 400; color: var(--muted); margin-top: 4px; }
+  .grade button.ultimo { border-color: var(--accent); background: var(--accent-soft); }
+  .outras { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 24px; }
+  .eu .nome-eu { font-size: 22px; font-weight: 700; }
   #aviso { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); max-width: calc(100% - 32px); z-index: 10; }
   #aviso:empty { display: none; }
 </style>
@@ -74,24 +84,34 @@
 <header>
   <h1>🔁 Rodízio da Micem</h1>
   <div class="linha">
+    <span id="quem" class="muted"></span>
     <span id="selo-central" class="tag prox" hidden>Central</span>
-    <button id="btn-central">Entrar como Central</button>
+    <button id="btn-trocar" hidden>Trocar</button>
   </div>
 </header>
 
-<main>
+<main id="tela-selecao" class="tela selecao">
+  <h2>Quem é você?</h2>
+  <p class="sub">Toque no seu nome para ver a sequência das Micens.</p>
+  <div class="grade" id="grade-tecnicos"><p class="vazio">Carregando…</p></div>
+  <div class="outras">
+    <button id="btn-so-ver">Só ver a fila</button>
+    <button id="btn-central">Sou a Central</button>
+  </div>
+</main>
+
+<main id="tela-fila" class="tela" hidden>
   <section class="card destaque">
     <div class="rotulo">Próximo a atender a Micem</div>
     <div class="nome" id="nome-proximo">…</div>
   </section>
 
-  <section class="card">
-    <h2>Quem é você?</h2>
-    <div class="linha">
-      <select id="sel-tecnico" aria-label="Escolha seu nome"></select>
+  <section class="card eu" id="card-eu" hidden>
+    <div class="linha" style="justify-content:space-between">
+      <span class="nome-eu" id="nome-eu"></span>
       <button class="primario" id="btn-solicitar" disabled>Fiz a Micem</button>
     </div>
-    <p class="muted" id="info-tecnico">Escolha seu nome para avisar a Central quando fizer uma Micem. Ela precisa aprovar para a fila andar.</p>
+    <p class="muted" id="info-tecnico"></p>
   </section>
 
   <section class="card central-only">
@@ -138,6 +158,8 @@ let estado = null;
 let senhaCentral = lerStorage(sessionStorage, "central-senha");
 let tecnicoAtual = lerStorage(localStorage, "tecnico-id");
 let carregando = false;
+// Qual tela está aberta: "selecao" (inicial) ou "fila". "Só ver a fila" entra sem técnico.
+let tela = senhaCentral ? "fila" : "selecao";
 
 function lerStorage(s, k) { try { return s.getItem(k); } catch { return null; } }
 function gravarStorage(s, k, v) { try { v == null ? s.removeItem(k) : s.setItem(k, v); } catch {} }
@@ -187,24 +209,34 @@ function render() {
   if (!estado) return;
   document.body.classList.toggle("central", !!senhaCentral);
   $("#selo-central").hidden = !senhaCentral;
-  $("#btn-central").textContent = senhaCentral ? "Sair" : "Entrar como Central";
+  $("#tela-selecao").hidden = tela !== "selecao";
+  $("#tela-fila").hidden = tela !== "fila";
+  $("#btn-trocar").hidden = tela !== "fila";
+  $("#btn-trocar").textContent = senhaCentral ? "Sair" : "Trocar";
+
+  const ordenados = [...estado.fila].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  if (tecnicoAtual && !ordenados.some((t) => t.id === tecnicoAtual)) { tecnicoAtual = null; gravarStorage(localStorage, "tecnico-id", null); }
+  const eu = estado.fila.find((t) => t.id === tecnicoAtual);
+  $("#quem").textContent = tela === "fila" && eu && !senhaCentral ? eu.nome : "";
+
+  // Tela de seleção
+  $("#grade-tecnicos").innerHTML = ordenados.length ? ordenados.map((t) => `
+    <button data-escolher="${t.id}" class="${t.id === tecnicoAtual ? "ultimo" : ""}">${esc(t.nome)}<span class="det">${estado.fila.indexOf(t) + 1}º na fila</span></button>`).join("")
+    : `<p class="vazio">Nenhum técnico cadastrado ainda. A Central pode cadastrar.</p>`;
 
   const prox = estado.fila.find((t) => t.proximo);
   $("#nome-proximo").textContent = prox ? prox.nome : estado.fila.length ? "Todos ausentes" : "Nenhum técnico cadastrado";
 
-  // Seletor de técnico
-  const sel = $("#sel-tecnico");
-  const ordenados = [...estado.fila].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-  if (tecnicoAtual && !ordenados.some((t) => t.id === tecnicoAtual)) { tecnicoAtual = null; gravarStorage(localStorage, "tecnico-id", null); }
-  sel.innerHTML = `<option value="">Selecione seu nome…</option>` +
-    ordenados.map((t) => `<option value="${t.id}" ${t.id === tecnicoAtual ? "selected" : ""}>${esc(t.nome)}</option>`).join("");
+  // Card do técnico escolhido
   const pendente = estado.solicitacoes.find((s) => s.tecnicoId === tecnicoAtual);
-  $("#btn-solicitar").disabled = !tecnicoAtual || !!pendente;
-  $("#info-tecnico").innerHTML = !tecnicoAtual
-    ? "Escolha seu nome para avisar a Central quando fizer uma Micem. Ela precisa aprovar para a fila andar."
-    : pendente
+  $("#card-eu").hidden = !eu || !!senhaCentral;
+  if (eu) {
+    $("#nome-eu").textContent = eu.nome;
+    $("#btn-solicitar").disabled = !!pendente;
+    $("#info-tecnico").innerHTML = pendente
       ? `<span class="tag pend">Aguardando a Central</span> Solicitação enviada às ${dataHora(pendente.criadoEm)}.`
-      : `Sua posição na fila: <strong>${estado.fila.findIndex((t) => t.id === tecnicoAtual) + 1}º</strong>.`;
+      : `Sua posição na fila: <strong>${estado.fila.indexOf(eu) + 1}º</strong>. Ao fazer uma Micem, toque em "Fiz a Micem" para avisar a Central.`;
+  }
 
   // Fila
   const pendentes = new Set(estado.solicitacoes.map((s) => s.tecnicoId));
@@ -251,8 +283,30 @@ function sairCentral() {
   render();
 }
 
+function abrirTela(nova) {
+  tela = nova;
+  render();
+  window.scrollTo(0, 0);
+}
+
+$("#btn-trocar").addEventListener("click", () => {
+  if (senhaCentral) { senhaCentral = null; gravarStorage(sessionStorage, "central-senha", null); }
+  abrirTela("selecao");
+});
+$("#btn-so-ver").addEventListener("click", () => {
+  tecnicoAtual = null;
+  gravarStorage(localStorage, "tecnico-id", null);
+  abrirTela("fila");
+});
+$("#grade-tecnicos").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-escolher]");
+  if (!b) return;
+  tecnicoAtual = b.dataset.escolher;
+  gravarStorage(localStorage, "tecnico-id", tecnicoAtual);
+  abrirTela("fila");
+});
+
 $("#btn-central").addEventListener("click", () => {
-  if (senhaCentral) return sairCentral();
   $("#senha").value = "";
   $("#dlg-login").showModal();
 });
@@ -266,16 +320,11 @@ $("#form-login").addEventListener("submit", async (ev) => {
     senhaCentral = senha;
     gravarStorage(sessionStorage, "central-senha", senha);
     $("#dlg-login").close();
-    render();
+    abrirTela("fila");
     avisar("Acesso da Central liberado.");
   } catch (e) { avisar(e.message, "erro"); }
 });
 
-$("#sel-tecnico").addEventListener("change", (ev) => {
-  tecnicoAtual = ev.target.value || null;
-  gravarStorage(localStorage, "tecnico-id", tecnicoAtual);
-  render();
-});
 $("#btn-solicitar").addEventListener("click", () => {
   if (!tecnicoAtual) return;
   executar({ tipo: "solicitar", tecnicoId: tecnicoAtual }, false, "Solicitação enviada para a Central.");

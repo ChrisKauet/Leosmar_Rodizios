@@ -5,7 +5,8 @@ Quem atende vai para o fim da fila.
 
 ## Como funciona
 
-- **Técnicos** abrem o site, escolhem o próprio nome e veem a fila. Ao fazer uma Micem,
+- **Técnicos** abrem o site e caem na tela "Quem é você?": tocam no próprio nome e veem a
+  sequência das Micens (dá também para "Só ver a fila" ou entrar como Central). Ao fazer uma Micem,
   clicam em "Fiz a Micem", o que cria uma solicitação para a Central.
 - **Central** entra com a senha e:
   - aprova ou recusa as solicitações (só depois de aprovada o técnico vai para o fim da fila);
