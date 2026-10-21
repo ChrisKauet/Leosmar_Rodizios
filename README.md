@@ -21,6 +21,10 @@ Quem atende vai para o fim da fila.
 Na primeira vez que o site abre, a fila já vem com os técnicos de `TECNICOS_INICIAIS`
 (em `lib/rodizio.mjs`). Depois disso o Mr. Micem cadastra, remove e reordena pelo site.
 
+O card **Micens de hoje** conta quantas Micens cada técnico fez em cada turno do dia
+(horário de Brasília): **manhã** das 8h às 17h e **noite** das 17h às 22h. As feitas fora
+desses horários aparecem à parte. Os turnos ficam em `TURNOS`, em `lib/rodizio.mjs`.
+
 A fila é salva no Netlify Blobs, então todos veem a mesma situação. A página atualiza a
 cada 10 segundos.
 

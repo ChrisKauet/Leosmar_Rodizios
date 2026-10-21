@@ -39,4 +39,23 @@ assert.throws(()=>r.acaoCentral(e,{tipo:"desfazer",token:tok2}));
 r.acaoCentral(e,{tipo:"adicionar",nome:"Eva"});
 assert.equal(r.visao(e).desfazer,null);
 assert.ok(!JSON.stringify(r.visao(e)).includes("antes"));
+// Turnos (horário de Brasília = UTC-3): 7h59 fora, 8h manhã, 16h59 manhã, 17h noite, 21h59 noite, 22h fora.
+const br = (hm) => new Date(`2026-10-21T${hm}:00-03:00`);
+assert.equal(r.turnoDe(br("07:59")), null);
+assert.equal(r.turnoDe(br("08:00")), "manha");
+assert.equal(r.turnoDe(br("16:59")), "manha");
+assert.equal(r.turnoDe(br("17:00")), "noite");
+assert.equal(r.turnoDe(br("21:59")), "noite");
+assert.equal(r.turnoDe(br("22:00")), null);
+{
+  let t = r.estadoInicial(["Ana", "Beto"]);
+  const [a, b] = t.tecnicos.map((x) => x.id);
+  for (const [id, hm] of [[a,"09:00"],[b,"10:00"],[a,"16:30"],[b,"18:00"],[a,"23:00"]]) r.acaoCentral(t, { tipo: "marcarFeita", tecnicoId: id }, br(hm));
+  r.acaoCentral(t, { tipo: "marcarFeita", tecnicoId: a }, new Date("2026-10-20T12:00:00-03:00")); // ontem: não conta
+  const c = r.contagemTurnos(t, br("19:00"));
+  assert.equal(c.atual, "noite");
+  assert.deepEqual(c.turnos.map((x) => x.total), [3, 1]);
+  assert.deepEqual(c.turnos[0].tecnicos.map((x) => `${x.nome}:${x.qtd}`), ["Ana:2", "Beto:1"]);
+  assert.equal(c.fora.total, 1);
+}
 console.log("ok");

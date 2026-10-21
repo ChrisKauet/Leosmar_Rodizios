@@ -200,6 +200,22 @@
   @media (max-width: 420px) { body.central header .titulo-txt { display: none; } }
   #sec-solicitacoes { scroll-margin-top: calc(76px + env(safe-area-inset-top)); }
 
+  /* Contador de Micens por turno */
+  .turnos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .turno { background: var(--bg); border-radius: 14px; padding: 14px; min-width: 0; }
+  .turno.atual { box-shadow: inset 0 0 0 2px var(--accent); background: var(--accent-soft); }
+  .turno-cab { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; font-weight: 700; }
+  .turno-cab > span:first-child { white-space: nowrap; }
+  .turno-num { font-size: 40px; font-weight: 800; line-height: 1.1; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .turno-num.pulou { animation: pulou .5s cubic-bezier(.2,1.6,.4,1); display: inline-block; }
+  .turno-lista { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+  .turno-lista li { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .turno-lista li span.n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .turno-lista li.eu { font-weight: 700; color: var(--ok); }
+  .turno-lista .mini { width: 24px; height: 24px; font-size: 10px; }
+  .turno-lista b { font-variant-numeric: tabular-nums; }
+  #turnos-fora { margin: 10px 0 0; }
+
   #aviso { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); z-index: 10; }
   #aviso:empty { display: none; }
 </style>
@@ -237,6 +253,15 @@
       <p class="muted" id="info-tecnico"></p>
     </div>
     <button class="primario grande" id="btn-solicitar" disabled>✅ Fiz a Micem</button>
+  </section>
+
+  <section class="card" id="card-turnos">
+    <div class="cab-solic">
+      <h2>Micens de hoje</h2>
+      <span class="muted" id="turnos-total"></span>
+    </div>
+    <div class="turnos" id="turnos"></div>
+    <p class="muted" id="turnos-fora" hidden></p>
   </section>
 
   <section class="card central-only" id="sec-solicitacoes">
@@ -647,7 +672,38 @@ function render() {
     try { navigator.vibrate?.(120); } catch {}
   }
 
+  renderTurnos();
   renderHistorico();
+}
+
+// Contador de Micens por turno de hoje (manhã 8h–17h, noite 17h–22h, horário de Brasília).
+const ICONE_TURNO = { manha: "☀️", noite: "🌙" };
+let totaisTurnoAntes = null;
+function renderTurnos() {
+  const c = estado.turnos;
+  if (!c) return;
+  const h = (n) => String(n).padStart(2, "0") + "h";
+  const soma = c.turnos.reduce((a, t) => a + t.total, 0) + c.fora.total;
+  $("#turnos-total").textContent = soma === 1 ? "1 no dia" : `${soma} no dia`;
+  $("#turnos").innerHTML = c.turnos.map((t) => `
+    <div class="turno ${t.id === c.atual ? "atual" : ""}">
+      <div class="turno-cab"><span>${ICONE_TURNO[t.id] ?? ""} ${esc(t.nome)}</span>${t.id === c.atual ? '<span class="tag prox">Agora</span>' : ""}</div>
+      <div class="turno-num" data-turno="${t.id}">${t.total}</div>
+      <div class="muted">${h(t.inicio)} – ${h(t.fim)}</div>
+      <ul class="turno-lista">${t.tecnicos.length ? t.tecnicos.map((x) => `
+        <li class="${x.id === tecnicoAtual && !senhaCentral ? "eu" : ""}"><span class="mini" aria-hidden="true">${esc(iniciais(x.nome))}</span><span class="n">${esc(x.nome)}</span><b>${x.qtd}</b></li>`).join("")
+        : '<li class="muted">Nenhuma ainda</li>'}
+      </ul>
+    </div>`).join("");
+  $("#turnos-fora").hidden = !c.fora.total;
+  $("#turnos-fora").textContent = c.fora.total
+    ? `Fora dos turnos: ${c.fora.tecnicos.map((x) => `${x.nome} (${x.qtd})`).join(", ")}`
+    : "";
+  // O número dá um pulinho quando aumenta (mas não no primeiro carregamento nem na virada do dia).
+  if (totaisTurnoAntes && totaisTurnoAntes.data === c.data && !reduzirMovimento.matches) {
+    for (const t of c.turnos) if (t.total > (totaisTurnoAntes[t.id] ?? 0)) $(`.turno-num[data-turno="${t.id}"]`).classList.add("pulou");
+  }
+  totaisTurnoAntes = Object.fromEntries([["data", c.data], ...c.turnos.map((t) => [t.id, t.total])]);
 }
 
 // 6. Histórico agrupado por dia, com tempo relativo. Redesenhado a cada minuto para o "há X min" andar.
