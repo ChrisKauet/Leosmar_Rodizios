@@ -12,9 +12,16 @@ function json(corpo, status = 200) {
 }
 
 // Compara a senha enviada com a variável de ambiente CENTRAL_SENHA sem vazar tempo.
+// Espaços nas pontas são ignorados dos dois lados, para não falhar por um espaço colado sem querer.
+function senhaConfigurada() {
+  const v = globalThis.Netlify?.env?.get("CENTRAL_SENHA") ?? process.env.CENTRAL_SENHA;
+  return typeof v === "string" ? v.trim() : "";
+}
+
 function senhaCorreta(enviada) {
-  const certa = process.env.CENTRAL_SENHA;
+  const certa = senhaConfigurada();
   if (!certa || typeof enviada !== "string") return false;
+  enviada = enviada.trim();
   const a = createHash("sha256").update(enviada).digest();
   const b = createHash("sha256").update(certa).digest();
   return timingSafeEqual(a, b);
@@ -55,6 +62,9 @@ export default async (req) => {
     const senha = req.headers.get("x-central-senha");
 
     if (acao.tipo === "login") {
+      if (!senhaConfigurada()) {
+        return json({ erro: "A senha da Central não está configurada no Netlify (variável CENTRAL_SENHA)." }, 500);
+      }
       return senhaCorreta(senha) ? json({ ok: true }) : json({ erro: "Senha incorreta." }, 401);
     }
 
