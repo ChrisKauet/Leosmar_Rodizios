@@ -120,6 +120,26 @@
   .eu .nome-eu { font-size: 22px; font-weight: 800; }
   .eu .muted { margin: 4px 0 0; }
 
+  /* Comemoração quando a Micem do técnico é confirmada */
+  #festa { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 24px;
+    background: rgba(10,15,25,.6); animation: festa-fundo .25s ease-out; }
+  #festa canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .festa-card { position: relative; width: min(360px, 100%); text-align: center; background: var(--card); color: var(--text);
+    border-radius: 26px; padding: 30px 22px 22px; box-shadow: 0 24px 70px rgba(0,0,0,.4); animation: festa-pop .5s cubic-bezier(.2,1.4,.4,1); }
+  .festa-card h2 { margin: 14px 0 6px; font-size: 26px; }
+  .festa-card p { margin: 0 0 20px; color: var(--muted); }
+  .festa-check { width: 96px; height: 96px; margin: 0 auto; border-radius: 50%; display: grid; place-items: center;
+    background: var(--ok); box-shadow: 0 0 0 0 var(--ok); animation: festa-pulso 1.2s .45s ease-out; }
+  .festa-check path { stroke-dasharray: 48; stroke-dashoffset: 48; animation: festa-traco .45s .3s ease-out forwards; }
+  @keyframes festa-fundo { from { opacity: 0; } }
+  @keyframes festa-pop { from { opacity: 0; transform: scale(.6) translateY(30px); } }
+  @keyframes festa-traco { to { stroke-dashoffset: 0; } }
+  @keyframes festa-pulso { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 60%, transparent); } to { box-shadow: 0 0 0 28px transparent; } }
+  @media (prefers-reduced-motion: reduce) {
+    #festa, .festa-card, .festa-check { animation: none; }
+    .festa-check path { animation: none; stroke-dashoffset: 0; }
+  }
+
   #aviso { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); z-index: 10; }
   #aviso:empty { display: none; }
 </style>
@@ -197,12 +217,29 @@
 
 <div id="aviso"></div>
 
+<div id="festa" hidden role="dialog" aria-modal="true" aria-labelledby="festa-titulo">
+  <canvas id="festa-confete"></canvas>
+  <div class="festa-card">
+    <div class="festa-check">
+      <svg width="54" height="54" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M5 12.5l4.5 4.5L19 7.5" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <h2 id="festa-titulo">Micem confirmada!</h2>
+    <p id="festa-texto"></p>
+    <button class="primario grande" id="festa-ok">Valeu!</button>
+  </div>
+</div>
+
 <script>
 const $ = (s) => document.querySelector(s);
 let estado = null;
 let senhaCentral = lerStorage(sessionStorage, "central-senha");
 let tecnicoAtual = lerStorage(localStorage, "tecnico-id");
 let carregando = false;
+let ultimoJson = "";
+// Solicitação pendente do técnico na última atualização, para saber se foi aprovada ou recusada.
+let pendenteAntes = null;
 // Qual tela está aberta: "selecao" (inicial) ou "fila". "Só ver a fila" entra sem técnico.
 let tela = senhaCentral ? "fila" : "selecao";
 
@@ -243,21 +280,96 @@ async function api(acao, comoCentral = false) {
 async function carregar() {
   if (carregando) return;
   carregando = true;
-  try { estado = await api(); render(); }
+  try { atualizar(await api()); }
   catch (e) { avisar("Não foi possível carregar a fila: " + e.message, "erro"); }
   finally { carregando = false; }
 }
 
 async function executar(acao, comoCentral = true, sucesso) {
   try {
-    estado = await api(acao, comoCentral);
-    render();
+    atualizar(await api(acao, comoCentral), true);
     if (sucesso) avisar(sucesso);
   } catch (e) { avisar(e.message, "erro"); }
 }
 
+function atualizar(novo, forcar = false) {
+  const json = JSON.stringify(novo);
+  if (!forcar && json === ultimoJson) return;
+  ultimoJson = json;
+  estado = novo;
+  render();
+}
+
+// Confere se a Micem do técnico escolhido foi confirmada (ou recusada) desde a última vez.
+// A última Micem já comemorada fica salva no aparelho, então quem estava com o site fechado
+// vê a comemoração ao abrir.
+function conferirMinhaMicem() {
+  if (!tecnicoAtual || senhaCentral) { pendenteAntes = null; return; }
+  const chave = "micem-vista-" + tecnicoAtual;
+  const minha = estado.historico.find((h) => h.tecnicoId === tecnicoAtual);
+  const vista = lerStorage(localStorage, chave);
+  const pendente = estado.solicitacoes.find((s) => s.tecnicoId === tecnicoAtual) || null;
+
+  if (vista == null) {
+    gravarStorage(localStorage, chave, minha ? minha.quando : "");
+  } else if (minha && minha.quando > vista) {
+    gravarStorage(localStorage, chave, minha.quando);
+    if (Date.now() - Date.parse(minha.quando) < 12 * 3600 * 1000) comemorar();
+  } else if (pendenteAntes && !pendente && pendenteAntes.tecnicoId === tecnicoAtual) {
+    avisar("Sua solicitação foi recusada pelo Mr. Micem.", "erro");
+  }
+  pendenteAntes = pendente;
+}
+
+function comemorar() {
+  const eu = estado.fila.find((t) => t.id === tecnicoAtual);
+  if (!eu) return;
+  const pos = estado.fila.indexOf(eu) + 1;
+  $("#festa-texto").textContent = `Boa, ${eu.nome}! Você foi para o fim da fila (${pos}º).`;
+  $("#festa").hidden = false;
+  $("#festa-ok").focus();
+  try { navigator.vibrate?.([80, 60, 160]); } catch {}
+  if (!matchMedia("(prefers-reduced-motion: reduce)").matches) confete();
+}
+
+function fecharFesta() {
+  $("#festa").hidden = true;
+  cancelAnimationFrame(confete.raf);
+}
+
+// Confete simples em canvas, sem biblioteca: ~2,5 s de papéis caindo.
+function confete() {
+  const cv = $("#festa-confete"), ctx = cv.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = innerWidth * dpr; cv.height = innerHeight * dpr;
+  ctx.scale(dpr, dpr);
+  const cores = ["#2563eb", "#7c3aed", "#15803d", "#f59e0b", "#ef4444", "#06b6d4"];
+  const pecas = Array.from({ length: 140 }, () => ({
+    x: innerWidth / 2 + (Math.random() - .5) * 80, y: innerHeight * .35,
+    vx: (Math.random() - .5) * 14, vy: -Math.random() * 14 - 4,
+    w: 6 + Math.random() * 6, h: 8 + Math.random() * 8,
+    r: Math.random() * Math.PI, vr: (Math.random() - .5) * .3, cor: cores[(Math.random() * cores.length) | 0],
+  }));
+  const inicio = performance.now();
+  cancelAnimationFrame(confete.raf);
+  (function quadro(agora) {
+    const t = agora - inicio;
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    ctx.globalAlpha = Math.max(0, 1 - Math.max(0, t - 1800) / 700);
+    for (const p of pecas) {
+      p.vy += .35; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r);
+      ctx.fillStyle = p.cor; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.cos(p.r * 2));
+      ctx.restore();
+    }
+    if (t < 2500) confete.raf = requestAnimationFrame(quadro);
+    else ctx.clearRect(0, 0, innerWidth, innerHeight);
+  })(inicio);
+}
+
 function render() {
   if (!estado) return;
+  conferirMinhaMicem();
   document.body.classList.toggle("central", !!senhaCentral);
   $("#selo-central").hidden = !senhaCentral;
   $("#tela-selecao").hidden = tela !== "selecao";
@@ -353,6 +465,7 @@ $("#grade-tecnicos").addEventListener("click", (ev) => {
   const b = ev.target.closest("button[data-escolher]");
   if (!b) return;
   tecnicoAtual = b.dataset.escolher;
+  pendenteAntes = null;
   gravarStorage(localStorage, "tecnico-id", tecnicoAtual);
   abrirTela("fila");
 });
@@ -377,6 +490,10 @@ $("#form-login").addEventListener("submit", async (ev) => {
     avisar("Acesso do Mr. Micem liberado.");
   } catch (e) { avisar(e.message, "erro"); }
 });
+
+$("#festa-ok").addEventListener("click", fecharFesta);
+$("#festa").addEventListener("click", (ev) => { if (ev.target.id === "festa") fecharFesta(); });
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !$("#festa").hidden) fecharFesta(); });
 
 $("#btn-solicitar").addEventListener("click", () => {
   if (!tecnicoAtual) return;
