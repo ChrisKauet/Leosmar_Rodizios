@@ -129,7 +129,7 @@
   <h1><span class="logo">🔁</span>Rodízio da Micem</h1>
   <div class="linha">
     <span id="quem" class="muted"></span>
-    <span id="selo-central" class="tag prox" hidden>Central</span>
+    <span id="selo-central" class="tag prox" hidden>Mr. Micem</span>
     <button id="btn-trocar" class="discreto" hidden>Trocar</button>
   </div>
 </header>
@@ -140,7 +140,7 @@
   <div class="grade" id="grade-tecnicos"><p class="vazio">Carregando…</p></div>
   <div class="outras">
     <button id="btn-so-ver">Só ver a fila</button>
-    <button id="btn-central">Sou a Central</button>
+    <button id="btn-central">Sou o Mr. Micem</button>
   </div>
 </main>
 
@@ -186,7 +186,7 @@
 
 <dialog id="dlg-login">
   <form method="dialog" id="form-login">
-    <h3>Acesso da Central</h3>
+    <h3>Acesso do Mr. Micem</h3>
     <input type="password" id="senha" placeholder="Senha" autocomplete="current-password" required>
     <div class="linha">
       <button type="button" id="btn-cancelar">Cancelar</button>
@@ -273,7 +273,7 @@ function render() {
   // Tela de seleção
   $("#grade-tecnicos").innerHTML = ordenados.length ? ordenados.map((t) => `
     <button data-escolher="${t.id}" class="${t.id === tecnicoAtual ? "ultimo" : ""}"><span class="avatar">${esc(iniciais(t.nome))}</span>${esc(t.nome)}<span class="det">${estado.fila.indexOf(t) + 1}º na fila</span></button>`).join("")
-    : `<p class="vazio">Nenhum técnico cadastrado ainda. A Central pode cadastrar.</p>`;
+    : `<p class="vazio">Nenhum técnico cadastrado ainda. O Mr. Micem pode cadastrar.</p>`;
 
   const prox = estado.fila.find((t) => t.proximo);
   $("#nome-proximo").textContent = prox ? prox.nome : estado.fila.length ? "Todos ausentes" : "Nenhum técnico cadastrado";
@@ -285,8 +285,8 @@ function render() {
     $("#nome-eu").textContent = eu.nome;
     $("#btn-solicitar").disabled = !!pendente;
     $("#info-tecnico").innerHTML = pendente
-      ? `<span class="tag pend">Aguardando a Central</span> Solicitação enviada às ${dataHora(pendente.criadoEm)}.`
-      : `Sua posição na fila: <strong>${estado.fila.indexOf(eu) + 1}º</strong>. Ao fazer uma Micem, toque em "Fiz a Micem" para avisar a Central.`;
+      ? `<span class="tag pend">Aguardando o Mr. Micem</span> Solicitação enviada às ${dataHora(pendente.criadoEm)}.`
+      : `Sua posição na fila: <strong>${estado.fila.indexOf(eu) + 1}º</strong>. Ao fazer uma Micem, toque em "Fiz a Micem" para avisar o Mr. Micem.`;
   }
 
   // Fila
@@ -374,13 +374,13 @@ $("#form-login").addEventListener("submit", async (ev) => {
     gravarStorage(sessionStorage, "central-senha", senha);
     $("#dlg-login").close();
     abrirTela("fila");
-    avisar("Acesso da Central liberado.");
+    avisar("Acesso do Mr. Micem liberado.");
   } catch (e) { avisar(e.message, "erro"); }
 });
 
 $("#btn-solicitar").addEventListener("click", () => {
   if (!tecnicoAtual) return;
-  executar({ tipo: "solicitar", tecnicoId: tecnicoAtual }, false, "Solicitação enviada para a Central.");
+  executar({ tipo: "solicitar", tecnicoId: tecnicoAtual }, false, "Solicitação enviada para o Mr. Micem.");
 });
 
 $("#form-adicionar").addEventListener("submit", (ev) => {

@@ -66,7 +66,7 @@ export default async (req) => {
     if (bruta != null) { try { senha = decodeURIComponent(bruta); } catch {} }
 
     if (senha != null && !senhaConfigurada()) {
-      return json({ erro: "A senha da Central não está configurada no Netlify (variável CENTRAL_SENHA). Crie a variável e faça um novo deploy." }, 503);
+      return json({ erro: "A senha do Mr. Micem não está configurada no Netlify (variável CENTRAL_SENHA). Crie a variável e faça um novo deploy." }, 503);
     }
 
     if (acao.tipo === "login") {
