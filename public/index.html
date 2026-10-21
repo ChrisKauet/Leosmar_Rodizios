@@ -99,15 +99,18 @@
     <ul class="simples" id="lista-solicitacoes"></ul>
   </section>
 
+  <section class="card central-only">
+    <h2>Cadastrar técnico</h2>
+    <form id="form-adicionar" class="linha">
+      <input id="novo-nome" placeholder="Nome do técnico" maxlength="60" required>
+      <button type="submit" class="primario">Cadastrar</button>
+    </form>
+    <p class="muted">O técnico cadastrado entra no fim da fila. Para remover ou mudar a posição, use os botões na fila abaixo.</p>
+  </section>
+
   <section class="card">
     <h2>Fila</h2>
     <ol class="fila" id="lista-fila"></ol>
-    <div class="linha central-only" style="margin-top:14px">
-      <form id="form-adicionar" class="linha">
-        <input id="novo-nome" placeholder="Nome do técnico" maxlength="60" required>
-        <button type="submit">Adicionar técnico</button>
-      </form>
-    </div>
   </section>
 
   <section class="card">
