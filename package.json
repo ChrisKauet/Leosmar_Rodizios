@@ -1,0 +1,12 @@
+{
+  "name": "leosmar-rodizios",
+  "private": true,
+  "type": "module",
+  "description": "Rodízio da Micem do DTI",
+  "scripts": {
+    "test": "node tests/rodizio.test.mjs"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^11.1.5"
+  }
+}

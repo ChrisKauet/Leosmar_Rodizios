@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rodízio da Micem</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔁</text></svg>">
+<style>
+  :root {
+    --bg: #f4f6f8; --card: #fff; --text: #1d2430; --muted: #5f6b7a; --line: #dfe4ea;
+    --accent: #1f6feb; --accent-soft: #e6efff; --ok: #1a7f37; --ok-soft: #e3f5e8;
+    --warn: #9a6700; --warn-soft: #fff4d6; --danger: #cf222e; --danger-soft: #ffe8ea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f141a; --card: #171d25; --text: #e6edf3; --muted: #93a1b0; --line: #2a333e;
+      --accent: #4c8dff; --accent-soft: #1a2a45; --ok: #3fb950; --ok-soft: #13301c;
+      --warn: #d29922; --warn-soft: #3a2c0a; --danger: #ff6b6b; --danger-soft: #3d1517;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; background: var(--card); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 18px; margin: 0; }
+  main { max-width: 860px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .card h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 12px; }
+  .destaque { text-align: center; padding: 24px 16px; }
+  .destaque .rotulo { color: var(--muted); font-size: 14px; }
+  .destaque .nome { font-size: 34px; font-weight: 700; color: var(--accent); margin-top: 4px; word-break: break-word; }
+  button, select, input { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 7px 12px; }
+  button:hover { border-color: var(--accent); }
+  button.primario { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
+  button.perigo { color: var(--danger); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.icone { padding: 4px 9px; }
+  select, input { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 7px 10px; }
+  .linha { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  ol.fila { list-style: none; margin: 0; padding: 0; }
+  ol.fila li { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 4px; border-top: 1px solid var(--line); }
+  ol.fila li:first-child { border-top: 0; }
+  ol.fila li.proximo { background: var(--accent-soft); border-radius: 8px; padding-left: 10px; padding-right: 10px; }
+  ol.fila li.ausente .nome-t { color: var(--muted); }
+  .pos { width: 28px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .nome-t { font-weight: 600; flex: 1; min-width: 120px; }
+  .tag { font-size: 12px; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+  .tag.prox { background: var(--accent); color: #fff; }
+  .tag.dia { background: var(--danger-soft); color: var(--danger); }
+  .tag.momento { background: var(--warn-soft); color: var(--warn); }
+  .tag.pend { background: var(--warn-soft); color: var(--warn); }
+  .controles { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; padding-left: 38px; }
+  .vazio { color: var(--muted); }
+  .msg { padding: 10px 12px; border-radius: 8px; }
+  .msg.ok { background: var(--ok-soft); color: var(--ok); }
+  .msg.erro { background: var(--danger-soft); color: var(--danger); }
+  ul.simples { list-style: none; margin: 0; padding: 0; }
+  ul.simples li { padding: 8px 0; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+  ul.simples li:first-child { border-top: 0; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .central-only { display: none; }
+  body.central .central-only { display: block; }
+  body.central .controles.central-only { display: flex; }
+  dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--text); padding: 20px; width: min(360px, calc(100% - 32px)); }
+  dialog::backdrop { background: rgba(0,0,0,.4); }
+  dialog h3 { margin: 0 0 12px; }
+  dialog input { width: 100%; margin-bottom: 10px; }
+  #aviso { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); max-width: calc(100% - 32px); z-index: 10; }
+  #aviso:empty { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔁 Rodízio da Micem</h1>
+  <div class="linha">
+    <span id="selo-central" class="tag prox" hidden>Central</span>
+    <button id="btn-central">Entrar como Central</button>
+  </div>
+</header>
+
+<main>
+  <section class="card destaque">
+    <div class="rotulo">Próximo a atender a Micem</div>
+    <div class="nome" id="nome-proximo">…</div>
+  </section>
+
+  <section class="card">
+    <h2>Quem é você?</h2>
+    <div class="linha">
+      <select id="sel-tecnico" aria-label="Escolha seu nome"></select>
+      <button class="primario" id="btn-solicitar" disabled>Fiz a Micem</button>
+    </div>
+    <p class="muted" id="info-tecnico">Escolha seu nome para avisar a Central quando fizer uma Micem. Ela precisa aprovar para a fila andar.</p>
+  </section>
+
+  <section class="card central-only">
+    <h2>Solicitações pendentes</h2>
+    <ul class="simples" id="lista-solicitacoes"></ul>
+  </section>
+
+  <section class="card">
+    <h2>Fila</h2>
+    <ol class="fila" id="lista-fila"></ol>
+    <div class="linha central-only" style="margin-top:14px">
+      <form id="form-adicionar" class="linha">
+        <input id="novo-nome" placeholder="Nome do técnico" maxlength="60" required>
+        <button type="submit">Adicionar técnico</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Últimas Micens</h2>
+    <ul class="simples" id="lista-historico"></ul>
+  </section>
+</main>
+
+<dialog id="dlg-login">
+  <form method="dialog" id="form-login">
+    <h3>Acesso da Central</h3>
+    <input type="password" id="senha" placeholder="Senha" autocomplete="current-password" required>
+    <div class="linha" style="justify-content:flex-end">
+      <button type="button" id="btn-cancelar">Cancelar</button>
+      <button type="submit" class="primario">Entrar</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="aviso"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let estado = null;
+let senhaCentral = lerStorage(sessionStorage, "central-senha");
+let tecnicoAtual = lerStorage(localStorage, "tecnico-id");
+let carregando = false;
+
+function lerStorage(s, k) { try { return s.getItem(k); } catch { return null; } }
+function gravarStorage(s, k, v) { try { v == null ? s.removeItem(k) : s.setItem(k, v); } catch {} }
+
+function esc(t) { return String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+function avisar(texto, tipo = "ok") {
+  const el = $("#aviso");
+  el.innerHTML = `<div class="msg ${tipo}">${esc(texto)}</div>`;
+  clearTimeout(avisar.t);
+  avisar.t = setTimeout(() => (el.innerHTML = ""), 3500);
+}
+
+function dataHora(iso) {
+  return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+async function api(acao, comoCentral = false) {
+  const opts = acao
+    ? { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(acao) }
+    : { method: "GET" };
+  if (comoCentral && senhaCentral) opts.headers["x-central-senha"] = senhaCentral;
+  const r = await fetch("/api", opts);
+  const dados = await r.json().catch(() => ({ erro: "Resposta inválida do servidor." }));
+  if (r.status === 401 && comoCentral) sairCentral();
+  if (!r.ok) throw new Error(dados.erro || "Erro.");
+  return dados;
+}
+
+async function carregar() {
+  if (carregando) return;
+  carregando = true;
+  try { estado = await api(); render(); }
+  catch (e) { avisar("Não foi possível carregar a fila: " + e.message, "erro"); }
+  finally { carregando = false; }
+}
+
+async function executar(acao, comoCentral = true, sucesso) {
+  try {
+    estado = await api(acao, comoCentral);
+    render();
+    if (sucesso) avisar(sucesso);
+  } catch (e) { avisar(e.message, "erro"); }
+}
+
+function render() {
+  if (!estado) return;
+  document.body.classList.toggle("central", !!senhaCentral);
+  $("#selo-central").hidden = !senhaCentral;
+  $("#btn-central").textContent = senhaCentral ? "Sair" : "Entrar como Central";
+
+  const prox = estado.fila.find((t) => t.proximo);
+  $("#nome-proximo").textContent = prox ? prox.nome : estado.fila.length ? "Todos ausentes" : "Nenhum técnico cadastrado";
+
+  // Seletor de técnico
+  const sel = $("#sel-tecnico");
+  const ordenados = [...estado.fila].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  if (tecnicoAtual && !ordenados.some((t) => t.id === tecnicoAtual)) { tecnicoAtual = null; gravarStorage(localStorage, "tecnico-id", null); }
+  sel.innerHTML = `<option value="">Selecione seu nome…</option>` +
+    ordenados.map((t) => `<option value="${t.id}" ${t.id === tecnicoAtual ? "selected" : ""}>${esc(t.nome)}</option>`).join("");
+  const pendente = estado.solicitacoes.find((s) => s.tecnicoId === tecnicoAtual);
+  $("#btn-solicitar").disabled = !tecnicoAtual || !!pendente;
+  $("#info-tecnico").innerHTML = !tecnicoAtual
+    ? "Escolha seu nome para avisar a Central quando fizer uma Micem. Ela precisa aprovar para a fila andar."
+    : pendente
+      ? `<span class="tag pend">Aguardando a Central</span> Solicitação enviada às ${dataHora(pendente.criadoEm)}.`
+      : `Sua posição na fila: <strong>${estado.fila.findIndex((t) => t.id === tecnicoAtual) + 1}º</strong>.`;
+
+  // Fila
+  const pendentes = new Set(estado.solicitacoes.map((s) => s.tecnicoId));
+  $("#lista-fila").innerHTML = estado.fila.length ? estado.fila.map((t, i) => `
+    <li class="${t.proximo ? "proximo" : ""} ${t.ausencia ? "ausente" : ""}">
+      <span class="pos">${i + 1}º</span>
+      <span class="nome-t">${esc(t.nome)}</span>
+      ${t.proximo ? '<span class="tag prox">Próximo</span>' : ""}
+      ${t.ausencia === "dia" ? '<span class="tag dia">Ausente hoje</span>' : ""}
+      ${t.ausencia === "momento" ? '<span class="tag momento">Ausente no momento</span>' : ""}
+      ${pendentes.has(t.id) ? '<span class="tag pend">Solicitou Micem</span>' : ""}
+      <div class="controles central-only">
+        <button class="icone" data-acao="subir" data-id="${t.id}" ${i === 0 ? "disabled" : ""} title="Subir">↑</button>
+        <button class="icone" data-acao="descer" data-id="${t.id}" ${i === estado.fila.length - 1 ? "disabled" : ""} title="Descer">↓</button>
+        <select data-acao="ausencia" data-id="${t.id}" aria-label="Situação">
+          <option value="" ${!t.ausencia ? "selected" : ""}>Presente</option>
+          <option value="momento" ${t.ausencia === "momento" ? "selected" : ""}>Ausente no momento</option>
+          <option value="dia" ${t.ausencia === "dia" ? "selected" : ""}>Ausente hoje</option>
+        </select>
+        <button class="ok" data-acao="feita" data-id="${t.id}">Micem feita</button>
+        <button class="perigo" data-acao="remover" data-id="${t.id}">Remover</button>
+      </div>
+    </li>`).join("") : `<li class="vazio">Nenhum técnico cadastrado ainda.</li>`;
+
+  // Solicitações
+  $("#lista-solicitacoes").innerHTML = estado.solicitacoes.length ? estado.solicitacoes.map((s) => `
+    <li>
+      <span><strong>${esc(s.nome)}</strong> <span class="muted">às ${dataHora(s.criadoEm)}</span></span>
+      <span class="linha">
+        <button class="ok" data-acao="aprovar" data-id="${s.id}">Aprovar</button>
+        <button class="perigo" data-acao="recusar" data-id="${s.id}">Recusar</button>
+      </span>
+    </li>`).join("") : `<li class="vazio">Nenhuma solicitação no momento.</li>`;
+
+  // Histórico
+  $("#lista-historico").innerHTML = estado.historico.length ? estado.historico.map((h) => `
+    <li><span><strong>${esc(h.nome)}</strong></span><span class="muted">${dataHora(h.quando)} · ${esc(h.origem)}</span></li>`).join("")
+    : `<li class="vazio">Nenhuma Micem registrada ainda.</li>`;
+}
+
+function sairCentral() {
+  senhaCentral = null;
+  gravarStorage(sessionStorage, "central-senha", null);
+  render();
+}
+
+$("#btn-central").addEventListener("click", () => {
+  if (senhaCentral) return sairCentral();
+  $("#senha").value = "";
+  $("#dlg-login").showModal();
+});
+$("#btn-cancelar").addEventListener("click", () => $("#dlg-login").close());
+$("#form-login").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const senha = $("#senha").value;
+  try {
+    const r = await fetch("/api", { method: "POST", headers: { "content-type": "application/json", "x-central-senha": senha }, body: JSON.stringify({ tipo: "login" }) });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).erro || "Senha incorreta.");
+    senhaCentral = senha;
+    gravarStorage(sessionStorage, "central-senha", senha);
+    $("#dlg-login").close();
+    render();
+    avisar("Acesso da Central liberado.");
+  } catch (e) { avisar(e.message, "erro"); }
+});
+
+$("#sel-tecnico").addEventListener("change", (ev) => {
+  tecnicoAtual = ev.target.value || null;
+  gravarStorage(localStorage, "tecnico-id", tecnicoAtual);
+  render();
+});
+$("#btn-solicitar").addEventListener("click", () => {
+  if (!tecnicoAtual) return;
+  executar({ tipo: "solicitar", tecnicoId: tecnicoAtual }, false, "Solicitação enviada para a Central.");
+});
+
+$("#form-adicionar").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const nome = $("#novo-nome").value.trim();
+  if (!nome) return;
+  executar({ tipo: "adicionar", nome }, true, `${nome} adicionado ao fim da fila.`).then(() => ($("#novo-nome").value = ""));
+});
+
+document.addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-acao]");
+  if (!b || !estado) return;
+  const id = b.dataset.id;
+  const nome = (estado.fila.find((t) => t.id === id) || {}).nome;
+  switch (b.dataset.acao) {
+    case "aprovar": return executar({ tipo: "aprovar", solicitacaoId: id }, true, "Micem aprovada.");
+    case "recusar": return executar({ tipo: "recusar", solicitacaoId: id }, true, "Solicitação recusada.");
+    case "feita": return executar({ tipo: "marcarFeita", tecnicoId: id }, true, `${nome} foi para o fim da fila.`);
+    case "remover":
+      if (!confirm(`Remover ${nome} do rodízio?`)) return;
+      return executar({ tipo: "remover", tecnicoId: id }, true, `${nome} removido.`);
+    case "subir":
+    case "descer": {
+      const fila = estado.fila.map((t) => t.id);
+      const i = fila.indexOf(id), j = b.dataset.acao === "subir" ? i - 1 : i + 1;
+      if (j < 0 || j >= fila.length) return;
+      [fila[i], fila[j]] = [fila[j], fila[i]];
+      return executar({ tipo: "reordenar", fila }, true);
+    }
+  }
+});
+document.addEventListener("change", (ev) => {
+  const s = ev.target.closest("select[data-acao='ausencia']");
+  if (!s) return;
+  executar({ tipo: "ausencia", tecnicoId: s.dataset.id, ausencia: s.value || null }, true);
+});
+
+carregar();
+setInterval(() => { if (!document.hidden && !document.querySelector("dialog[open]")) carregar(); }, 10000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) carregar(); });
+</script>
+</body>
+</html>
