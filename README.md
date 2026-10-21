@@ -13,6 +13,7 @@ Quem atende vai para o fim da fila.
   - marca uma Micem como feita diretamente;
   - marca técnicos como *ausente no momento* ou *ausente hoje*;
   - adiciona, remove e reordena os técnicos.
+  - pode desfazer, logo em seguida (até 2 min), uma aprovação, recusa, "Micem feita" ou remoção.
 - **Ausências:** quem está ausente é pulado, mas mantém sua posição. Quando volta, já está
   na frente de quem atendeu enquanto ele estava fora. "Ausente hoje" expira sozinho na
   virada do dia (horário de Brasília); "ausente no momento" fica até o Mr. Micem tirar.
