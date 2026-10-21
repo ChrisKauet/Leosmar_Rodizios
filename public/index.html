@@ -161,6 +161,8 @@
   ol.fila li.eu { box-shadow: inset 0 0 0 2px var(--ok); background: var(--ok-soft); }
   ol.fila li.eu.proximo { box-shadow: inset 0 0 0 2px var(--accent), 0 0 0 3px var(--ok-soft); background: var(--accent-soft); }
   .tag.voce { background: var(--ok); color: #fff; }
+  .saldo-ctl { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; font-size: 14px; color: var(--muted); }
+  .tag.saldo { background: var(--ok-soft); color: var(--ok); font-weight: 600; }
 
   /* 6. Histórico agrupado por dia */
   ul.simples li.grupo { border-top: 0; padding: 14px 0 2px; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
@@ -530,7 +532,7 @@ function atualizar(novo, forcar = false) {
 function conferirMinhaMicem() {
   if (!tecnicoAtual || senhaCentral) { pendenteAntes = null; return; }
   const chave = "micem-vista-" + tecnicoAtual;
-  const minha = estado.historico.find((h) => h.tecnicoId === tecnicoAtual);
+  const minha = estado.historico.find((h) => h.tecnicoId === tecnicoAtual && !h.usoSaldo);
   const vista = lerStorage(localStorage, chave);
   const pendente = estado.solicitacoes.find((s) => s.tecnicoId === tecnicoAtual) || null;
 
@@ -538,18 +540,20 @@ function conferirMinhaMicem() {
     gravarStorage(localStorage, chave, minha ? minha.quando : "");
   } else if (minha && minha.quando > vista) {
     gravarStorage(localStorage, chave, minha.quando);
-    if (Date.now() - Date.parse(minha.quando) < 12 * 3600 * 1000) comemorar();
+    if (Date.now() - Date.parse(minha.quando) < 12 * 3600 * 1000) comemorar(minha);
   } else if (pendenteAntes && !pendente && pendenteAntes.tecnicoId === tecnicoAtual) {
     avisar("Sua solicitação foi recusada pelo Mr. Micem.", "erro");
   }
   pendenteAntes = pendente;
 }
 
-function comemorar() {
+function comemorar(micem) {
   const eu = estado.fila.find((t) => t.id === tecnicoAtual);
   if (!eu) return;
   const pos = estado.fila.indexOf(eu) + 1;
-  $("#festa-texto").textContent = `Boa, ${eu.nome}! Você foi para o fim da fila (${pos}º).`;
+  $("#festa-texto").textContent = micem?.foraDaVez
+    ? `Boa, ${eu.nome}! Essa foi fora da sua vez, então você ganhou +1 de saldo (saldo: ${eu.saldo}). Sua vez vai ser pulada uma vez.`
+    : `Boa, ${eu.nome}! Você foi para o fim da fila (${pos}º).`;
   $("#festa").hidden = false;
   $("#festa-ok").focus();
   try { navigator.vibrate?.([80, 60, 160]); } catch {}
@@ -623,7 +627,7 @@ function render() {
     $("#btn-solicitar").disabled = !!pendente;
     $("#info-tecnico").innerHTML = pendente
       ? `<span class="tag pend">Aguardando o Mr. Micem</span> Solicitação enviada às ${dataHora(pendente.criadoEm)}.`
-      : `Sua posição na fila: <strong>${estado.fila.indexOf(eu) + 1}º</strong>. Ao fazer uma Micem, toque em "Fiz a Micem" para avisar o Mr. Micem.`;
+      : `Sua posição na fila: <strong>${estado.fila.indexOf(eu) + 1}º</strong>.${eu.saldo ? ` Seu saldo: <strong>${eu.saldo}</strong> (sua vez será pulada ${eu.saldo === 1 ? "uma vez" : `${eu.saldo} vezes`}).` : ""} Ao fazer uma Micem, toque em "Fiz a Micem" para avisar o Mr. Micem.`;
   }
 
   // Fila
@@ -637,6 +641,7 @@ function render() {
       ${t.proximo ? '<span class="tag prox">Próximo</span>' : ""}
       ${t.ausencia === "dia" ? '<span class="tag dia">Ausente hoje</span>' : ""}
       ${t.ausencia === "momento" ? '<span class="tag momento">Ausente no momento</span>' : ""}
+      ${t.saldo ? `<span class="tag saldo" title="Micens feitas fora da vez">Saldo ${t.saldo}</span>` : ""}
       ${pendentes.has(t.id) ? '<span class="tag pend">Solicitou Micem</span>' : ""}
       <div class="controles central-only">
         <button class="icone" data-acao="subir" data-id="${t.id}" ${i === 0 ? "disabled" : ""} title="Subir">↑</button>
@@ -646,6 +651,11 @@ function render() {
           <option value="momento" ${t.ausencia === "momento" ? "selected" : ""}>Ausente no momento</option>
           <option value="dia" ${t.ausencia === "dia" ? "selected" : ""}>Ausente hoje</option>
         </select>
+        <span class="saldo-ctl">
+          <button class="icone" data-acao="saldo-menos" data-id="${t.id}" ${t.saldo ? "" : "disabled"} title="Tirar 1 de saldo" aria-label="Tirar 1 de saldo">−</button>
+          <span>Saldo ${t.saldo}</span>
+          <button class="icone" data-acao="saldo-mais" data-id="${t.id}" title="Dar 1 de saldo" aria-label="Dar 1 de saldo">+</button>
+        </span>
         <button class="ok" data-acao="feita" data-id="${t.id}">Micem feita</button>
         <button class="perigo" data-acao="remover" data-id="${t.id}">Remover</button>
       </div>
@@ -716,7 +726,7 @@ function renderHistorico() {
     dia = d;
     return `${grupo}<li>
       <span class="hist-nome"><span class="mini" aria-hidden="true">${esc(iniciais(h.nome))}</span>${esc(h.nome)}</span>
-      <span class="hist-quando muted" title="${esc(dataHora(h.quando))}">${esc(tempoRelativo(h.quando))}<small>${h.origem === "Mr. Micem" ? "marcada pelo Mr. Micem" : "aprovada"}</small></span>
+      <span class="hist-quando muted" title="${esc(dataHora(h.quando))}">${esc(tempoRelativo(h.quando))}<small>${h.usoSaldo ? "usou 1 de saldo" : (h.origem === "Mr. Micem" ? "marcada pelo Mr. Micem" : "aprovada") + (h.foraDaVez ? " · fora da vez, +1 saldo" : "")}</small></span>
     </li>`;
   }).join("") : `<li class="vazio">Nenhuma Micem registrada ainda.</li>`;
 }
@@ -813,9 +823,11 @@ document.addEventListener("click", async (ev) => {
   const solic = estado.solicitacoes.find((s) => s.id === id);
   const opts = { botao: b };
   switch (b.dataset.acao) {
-    case "aprovar": return executar({ tipo: "aprovar", solicitacaoId: id }, true, `Micem de ${solic?.nome ?? "técnico"} aprovada.`, { ...opts, sair: b.closest("li") });
+    case "aprovar": return executar({ tipo: "aprovar", solicitacaoId: id }, true, `Micem de ${solic?.nome ?? "técnico"} aprovada${solic && solic.tecnicoId !== estado.proximo ? " (fora da vez, +1 saldo)" : ""}.`, { ...opts, sair: b.closest("li") });
     case "recusar": return executar({ tipo: "recusar", solicitacaoId: id }, true, "Solicitação recusada.", { ...opts, sair: b.closest("li") });
-    case "feita": return executar({ tipo: "marcarFeita", tecnicoId: id }, true, `${nome} foi para o fim da fila.`, opts);
+    case "feita": return executar({ tipo: "marcarFeita", tecnicoId: id }, true, id === estado.proximo ? `${nome} foi para o fim da fila.` : `${nome} fez fora da vez e ganhou +1 de saldo.`, opts);
+    case "saldo-mais": return executar({ tipo: "saldo", tecnicoId: id, delta: 1 }, true, `+1 de saldo para ${nome}.`, opts);
+    case "saldo-menos": return executar({ tipo: "saldo", tecnicoId: id, delta: -1 }, true, `−1 de saldo para ${nome}.`, opts);
     case "remover":
       if (!(await confirmar(`Remover ${nome}?`, `${nome} sai do rodízio. Dá para desfazer logo em seguida.`, "Remover"))) return;
       return executar({ tipo: "remover", tecnicoId: id }, true, `${nome} removido.`, opts);

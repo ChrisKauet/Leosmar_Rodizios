@@ -59,3 +59,31 @@ assert.equal(r.turnoDe(br("22:00")), null);
   assert.equal(c.fora.total, 1);
 }
 console.log("ok");
+// Saldo: Micem fora da vez dá saldo e mantém o lugar; quem tem saldo é pulado e gasta quando a vez passa.
+{
+  const s = r.estadoInicial(["A","B","C","D"]);
+  const fila = () => r.visao(s).fila.map(t=>t.nome+(t.saldo?`(${t.saldo})`:"")).join(",");
+  const prox = () => s.tecnicos.find(t=>t.id===r.proximo(s)).nome;
+  r.acaoCentral(s,{tipo:"marcarFeita",tecnicoId:"t3"});            // C fora da vez
+  assert.equal(fila(),"A,B,C(1),D");
+  r.acaoCentral(s,{tipo:"marcarFeita",tecnicoId:"t3"});            // C de novo
+  assert.equal(fila(),"A,B,C(2),D");
+  r.acaoCentral(s,{tipo:"marcarFeita",tecnicoId:"t1"});            // A na vez
+  r.acaoCentral(s,{tipo:"marcarFeita",tecnicoId:"t2"});            // B na vez
+  assert.equal(fila(),"C(2),D,A,B");
+  assert.equal(prox(),"D");                                       // C pulado pelo saldo
+  r.acaoCentral(s,{tipo:"marcarFeita",tecnicoId:"t4"});            // D na vez: C gasta 1
+  assert.equal(fila(),"A,B,C(1),D");
+  assert.equal(prox(),"A");
+  // Contador por turno ignora o uso de saldo: 5 Micens de verdade.
+  const c = r.contagemTurnos(s);
+  assert.equal(c.turnos.reduce((a,t)=>a+t.total,0)+c.fora.total, 5);
+  // Ajuste manual pelo Mr. Micem, sem ficar negativo.
+  r.acaoCentral(s,{tipo:"saldo",tecnicoId:"t3",delta:-1});
+  r.acaoCentral(s,{tipo:"saldo",tecnicoId:"t3",delta:-1});
+  assert.equal(fila(),"A,B,C,D");
+  // Todos os presentes com saldo: o primeiro presente é o próximo.
+  for (const id of ["t1","t2","t3","t4"]) r.acaoCentral(s,{tipo:"saldo",tecnicoId:id,delta:1});
+  assert.equal(prox(),"A");
+}
+console.log("saldo ok");

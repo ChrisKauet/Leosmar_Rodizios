@@ -14,6 +14,10 @@ Quem atende vai para o fim da fila.
   - marca técnicos como *ausente no momento* ou *ausente hoje*;
   - adiciona, remove e reordena os técnicos.
   - pode desfazer, logo em seguida (até 2 min), uma aprovação, recusa, "Micem feita" ou remoção.
+- **Saldo:** quem faz uma Micem fora da vez fica no mesmo lugar da fila e ganha 1 de saldo.
+  Quem tem saldo é pulado na hora de escolher o próximo; quando o próximo faz a Micem, cada
+  técnico pulado por saldo gasta 1 e vai para o fim da fila junto. O Mr. Micem pode ajustar o
+  saldo com os botões − e + de cada técnico. Usar saldo não conta no contador por turno.
 - **Ausências:** quem está ausente é pulado, mas mantém sua posição. Quando volta, já está
   na frente de quem atendeu enquanto ele estava fora. "Ausente hoje" expira sozinho na
   virada do dia (horário de Brasília); "ausente no momento" fica até o Mr. Micem tirar.
