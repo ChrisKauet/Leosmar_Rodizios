@@ -16,6 +16,9 @@ Quem atende vai para o fim da fila.
   na frente de quem atendeu enquanto ele estava fora. "Ausente hoje" expira sozinho na
   virada do dia (horário de Brasília); "ausente no momento" fica até a Central tirar.
 
+Na primeira vez que o site abre, a fila já vem com os técnicos de `TECNICOS_INICIAIS`
+(em `lib/rodizio.mjs`). Depois disso a Central cadastra, remove e reordena pelo site.
+
 A fila é salva no Netlify Blobs, então todos veem a mesma situação. A página atualiza a
 cada 10 segundos.
 

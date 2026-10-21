@@ -1,6 +1,7 @@
 import * as r from "../lib/rodizio.mjs";
 import assert from "node:assert";
-let e = r.estadoInicial();
+assert.equal(r.visao(r.estadoInicial()).fila.map(t=>t.nome).join(","), r.TECNICOS_INICIAIS.join(","));
+let e = r.estadoInicial([]);
 for (const n of ["Ana","Beto","Caio","Duda"]) r.acaoCentral(e,{tipo:"adicionar",nome:n});
 const id = n => e.tecnicos.find(t=>t.nome===n).id;
 const nm = () => r.visao(e).fila.map(t=>t.nome).join(",");
