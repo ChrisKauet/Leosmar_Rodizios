@@ -140,6 +140,54 @@
     .festa-check path { animation: none; stroke-dashoffset: 0; }
   }
 
+  /* 1. Botão esperando o servidor */
+  button.carregando { position: relative; color: transparent !important; pointer-events: none; }
+  button.carregando::after { content: ""; position: absolute; inset: 0; margin: auto; width: 20px; height: 20px; border-radius: 50%;
+    border: 2.5px solid var(--spin, var(--muted)); border-right-color: transparent; animation: girar .7s linear infinite; }
+  button.primario, button.ok, button.perigo-forte { --spin: #fff; }
+  button.perigo { --spin: var(--danger); }
+  @keyframes girar { to { transform: rotate(360deg); } }
+
+  /* 3. Esqueleto enquanto carrega */
+  .esqueleto { background: linear-gradient(90deg, var(--line) 25%, var(--bg) 50%, var(--line) 75%); background-size: 200% 100%;
+    animation: brilho 1.2s ease-in-out infinite; border: 0 !important; box-shadow: none !important; }
+  .grade .esqueleto { height: 140px; border-radius: var(--raio); }
+  ol.fila li.esqueleto { height: 58px; }
+  @keyframes brilho { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+  /* 5. Você na fila */
+  .mini { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800;
+    color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  ol.fila li.eu { box-shadow: inset 0 0 0 2px var(--ok); background: var(--ok-soft); }
+  ol.fila li.eu.proximo { box-shadow: inset 0 0 0 2px var(--accent), 0 0 0 3px var(--ok-soft); background: var(--accent-soft); }
+  .tag.voce { background: var(--ok); color: #fff; }
+
+  /* 6. Histórico agrupado por dia */
+  ul.simples li.grupo { border-top: 0; padding: 14px 0 2px; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+  ul.simples li.grupo:first-child { padding-top: 0; }
+  ul.simples li.grupo + li { border-top: 0; }
+  .hist-nome { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+  .hist-nome .mini { width: 30px; height: 30px; font-size: 12px; }
+  .hist-quando { text-align: right; }
+  .hist-quando small { display: block; font-size: 12px; }
+
+  /* 7. Nova solicitação chegando */
+  #lista-solicitacoes li.nova { animation: chegou 1.6s ease-out; border-radius: 12px; }
+  @keyframes chegou { 0% { background: var(--warn-soft); box-shadow: 0 0 0 0 var(--warn); } 40% { background: var(--warn-soft); box-shadow: 0 0 0 6px transparent; } 100% { background: transparent; } }
+
+  /* 8. Confirmação no estilo do site */
+  button.perigo-forte { background: var(--danger); border-color: var(--danger); color: #fff; }
+  dialog p { margin: 0 0 18px; }
+
+  /* 9. Aviso com Desfazer */
+  .msg { display: flex; align-items: center; gap: 14px; }
+  .msg button { min-height: 36px; padding: 6px 14px; background: transparent; color: inherit; border: 1.5px solid currentColor; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .esqueleto, #lista-solicitacoes li.nova, button.carregando::after { animation-duration: 3s; }
+    #lista-solicitacoes li.nova { animation: none; background: var(--warn-soft); }
+  }
+
   #aviso { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); z-index: 10; }
   #aviso:empty { display: none; }
 </style>
@@ -157,7 +205,7 @@
 <main id="tela-selecao" class="tela selecao">
   <h2>Quem é você?</h2>
   <p class="sub">Toque no seu nome para ver a sequência das Micens.</p>
-  <div class="grade" id="grade-tecnicos"><p class="vazio">Carregando…</p></div>
+  <div class="grade" id="grade-tecnicos" aria-busy="true"><div class="esqueleto"></div><div class="esqueleto"></div><div class="esqueleto"></div><div class="esqueleto"></div><div class="esqueleto"></div><div class="esqueleto"></div></div>
   <div class="outras">
     <button id="btn-so-ver">Só ver a fila</button>
     <button id="btn-central">Sou o Mr. Micem</button>
@@ -195,7 +243,7 @@
 
   <section class="card">
     <h2>Fila</h2>
-    <ol class="fila" id="lista-fila"></ol>
+    <ol class="fila" id="lista-fila"><li class="esqueleto"></li><li class="esqueleto"></li><li class="esqueleto"></li><li class="esqueleto"></li></ol>
   </section>
 
   <section class="card">
@@ -215,7 +263,18 @@
   </form>
 </dialog>
 
-<div id="aviso"></div>
+<dialog id="dlg-confirmar">
+  <form method="dialog">
+    <h3 id="conf-titulo"></h3>
+    <p class="muted" id="conf-texto"></p>
+    <div class="linha">
+      <button value="nao">Cancelar</button>
+      <button value="sim" class="perigo-forte" id="conf-ok"></button>
+    </div>
+  </form>
+</dialog>
+
+<div id="aviso" aria-live="polite"></div>
 
 <div id="festa" hidden role="dialog" aria-modal="true" aria-labelledby="festa-titulo">
   <canvas id="festa-confete"></canvas>
@@ -238,6 +297,9 @@ let senhaCentral = lerStorage(sessionStorage, "central-senha");
 let tecnicoAtual = lerStorage(localStorage, "tecnico-id");
 let carregando = false;
 let ultimoJson = "";
+// 7. Solicitações que o Mr. Micem já viu, para destacar as novas (null = ainda não carregou).
+let solicitacoesVistas = null;
+const reduzirMovimento = matchMedia("(prefers-reduced-motion: reduce)");
 // Solicitação pendente do técnico na última atualização, para saber se foi aprovada ou recusada.
 let pendenteAntes = null;
 // Qual tela está aberta: "selecao" (inicial) ou "fila". "Só ver a fila" entra sem técnico.
@@ -254,11 +316,68 @@ function iniciais(nome) {
 
 function esc(t) { return String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
-function avisar(texto, tipo = "ok") {
+// Mostra um aviso no rodapé. Com `botao` ({ rotulo, acao }), o aviso fica mais tempo e tem um botão.
+function avisar(texto, tipo = "ok", botao = null) {
   const el = $("#aviso");
-  el.innerHTML = `<div class="msg ${tipo}">${esc(texto)}</div>`;
+  el.innerHTML = `<div class="msg ${tipo}"><span>${esc(texto)}</span>${botao ? `<button type="button">${esc(botao.rotulo)}</button>` : ""}</div>`;
+  if (botao) el.querySelector("button").addEventListener("click", () => { el.innerHTML = ""; botao.acao(); }, { once: true });
   clearTimeout(avisar.t);
-  avisar.t = setTimeout(() => (el.innerHTML = ""), 3500);
+  avisar.t = setTimeout(() => (el.innerHTML = ""), botao ? 8000 : 3500);
+}
+
+// 8. Confirmação no estilo do site, no lugar do confirm() do navegador.
+function confirmar(titulo, texto, rotulo) {
+  const d = $("#dlg-confirmar");
+  $("#conf-titulo").textContent = titulo;
+  $("#conf-texto").textContent = texto;
+  $("#conf-ok").textContent = rotulo;
+  d.returnValue = "";
+  d.showModal();
+  return new Promise((ok) => d.addEventListener("close", () => ok(d.returnValue === "sim"), { once: true }));
+}
+
+// 6. "agora", "há 5 min" ou a hora; e o rótulo do dia para agrupar o histórico.
+function tempoRelativo(iso) {
+  const min = Math.floor((Date.now() - Date.parse(iso)) / 60000);
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min} min`;
+  return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+function rotuloDia(iso) {
+  const d = new Date(iso), hoje = new Date(), ontem = new Date(Date.now() - 864e5);
+  if (d.toDateString() === hoje.toDateString()) return "Hoje";
+  if (d.toDateString() === ontem.toDateString()) return "Ontem";
+  return d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit" });
+}
+
+// 2. Troca o conteúdo de uma lista animando cada item (data-chave) da posição antiga para a nova.
+function trocarLista(el, html) {
+  const antes = new Map();
+  for (const c of el.children) if (c.dataset.chave) antes.set(c.dataset.chave, c.getBoundingClientRect().top);
+  el.innerHTML = html;
+  if (reduzirMovimento.matches || !antes.size || el.offsetParent === null) return;
+  for (const c of el.children) {
+    const k = c.dataset.chave;
+    if (!k) continue;
+    if (!antes.has(k)) {
+      c.animate([{ opacity: 0, transform: "scale(.96)" }, { opacity: 1, transform: "none" }], { duration: 300, easing: "ease-out" });
+      continue;
+    }
+    const dy = antes.get(k) - c.getBoundingClientRect().top;
+    if (Math.abs(dy) > 1) {
+      c.style.position = "relative";
+      c.style.zIndex = dy < 0 ? "1" : "";
+      c.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: 500, easing: "cubic-bezier(.2,.8,.2,1)" })
+        .finished.then(() => { c.style.zIndex = ""; }).catch(() => {});
+    }
+  }
+}
+
+// 7. Item que sai deslizando (solicitação aprovada ou recusada).
+function sairDeslizando(el) {
+  if (!el || reduzirMovimento.matches) return Promise.resolve();
+  return el.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateX(60px)" }],
+    { duration: 260, easing: "ease-in", fill: "forwards" }).finished.catch(() => {});
 }
 
 function dataHora(iso) {
@@ -285,11 +404,27 @@ async function carregar() {
   finally { carregando = false; }
 }
 
-async function executar(acao, comoCentral = true, sucesso) {
+// Envia uma ação. `botao` mostra o carregando e evita toque duplo; `sair` é o item que sai
+// deslizando quando dá certo; ações desfazíveis do Mr. Micem mostram "Desfazer" no aviso.
+async function executar(acao, comoCentral = true, sucesso, { botao = null, sair = null } = {}) {
+  if (botao) { if (botao.disabled) return false; botao.disabled = true; botao.classList.add("carregando"); }
   try {
-    atualizar(await api(acao, comoCentral), true);
-    if (sucesso) avisar(sucesso);
-  } catch (e) { avisar(e.message, "erro"); }
+    const novo = await api(acao, comoCentral);
+    if (sair) await sairDeslizando(sair);
+    atualizar(novo, true);
+    if (sucesso) {
+      const token = novo.desfazer?.token;
+      avisar(sucesso, "ok", token && comoCentral && acao.tipo !== "desfazer"
+        ? { rotulo: "Desfazer", acao: () => executar({ tipo: "desfazer", token }, true, "Ação desfeita.") }
+        : null);
+    }
+    return true;
+  } catch (e) {
+    avisar(e.message, "erro");
+    return false;
+  } finally {
+    if (botao && botao.isConnected) { botao.disabled = false; botao.classList.remove("carregando"); }
+  }
 }
 
 function atualizar(novo, forcar = false) {
@@ -383,6 +518,7 @@ function render() {
   $("#quem").textContent = tela === "fila" && eu && !senhaCentral ? eu.nome : "";
 
   // Tela de seleção
+  $("#grade-tecnicos").removeAttribute("aria-busy");
   $("#grade-tecnicos").innerHTML = ordenados.length ? ordenados.map((t) => `
     <button data-escolher="${t.id}" class="${t.id === tecnicoAtual ? "ultimo" : ""}"><span class="avatar">${esc(iniciais(t.nome))}</span>${esc(t.nome)}<span class="det">${estado.fila.indexOf(t) + 1}º na fila</span></button>`).join("")
     : `<p class="vazio">Nenhum técnico cadastrado ainda. O Mr. Micem pode cadastrar.</p>`;
@@ -403,10 +539,12 @@ function render() {
 
   // Fila
   const pendentes = new Set(estado.solicitacoes.map((s) => s.tecnicoId));
-  $("#lista-fila").innerHTML = estado.fila.length ? estado.fila.map((t, i) => `
-    <li class="${t.proximo ? "proximo" : ""} ${t.ausencia ? "ausente" : ""}">
+  trocarLista($("#lista-fila"), estado.fila.length ? estado.fila.map((t, i) => `
+    <li data-chave="${t.id}" class="${t.proximo ? "proximo" : ""} ${t.ausencia ? "ausente" : ""} ${t.id === tecnicoAtual && !senhaCentral ? "eu" : ""}">
       <span class="pos">${i + 1}º</span>
+      <span class="mini" aria-hidden="true">${esc(iniciais(t.nome))}</span>
       <span class="nome-t">${esc(t.nome)}</span>
+      ${t.id === tecnicoAtual && !senhaCentral ? '<span class="tag voce">Você</span>' : ""}
       ${t.proximo ? '<span class="tag prox">Próximo</span>' : ""}
       ${t.ausencia === "dia" ? '<span class="tag dia">Ausente hoje</span>' : ""}
       ${t.ausencia === "momento" ? '<span class="tag momento">Ausente no momento</span>' : ""}
@@ -422,22 +560,43 @@ function render() {
         <button class="ok" data-acao="feita" data-id="${t.id}">Micem feita</button>
         <button class="perigo" data-acao="remover" data-id="${t.id}">Remover</button>
       </div>
-    </li>`).join("") : `<li class="vazio">Nenhum técnico cadastrado ainda.</li>`;
+    </li>`).join("") : `<li class="vazio">Nenhum técnico cadastrado ainda.</li>`);
 
-  // Solicitações
-  $("#lista-solicitacoes").innerHTML = estado.solicitacoes.length ? estado.solicitacoes.map((s) => `
-    <li>
+  // Solicitações. Para o Mr. Micem, as que chegaram desde a última atualização piscam e avisam.
+  let novas = [];
+  if (senhaCentral) {
+    if (solicitacoesVistas) novas = estado.solicitacoes.filter((s) => !solicitacoesVistas.has(s.id));
+    solicitacoesVistas = new Set(estado.solicitacoes.map((s) => s.id));
+  } else solicitacoesVistas = null;
+  trocarLista($("#lista-solicitacoes"), estado.solicitacoes.length ? estado.solicitacoes.map((s) => `
+    <li data-chave="${s.id}" class="${novas.some((n) => n.id === s.id) ? "nova" : ""}">
       <span><strong>${esc(s.nome)}</strong> <span class="muted">às ${dataHora(s.criadoEm)}</span></span>
       <span class="linha">
         <button class="ok" data-acao="aprovar" data-id="${s.id}">Aprovar</button>
         <button class="perigo" data-acao="recusar" data-id="${s.id}">Recusar</button>
       </span>
-    </li>`).join("") : `<li class="vazio">Nenhuma solicitação no momento.</li>`;
+    </li>`).join("") : `<li class="vazio">Nenhuma solicitação no momento.</li>`);
+  if (novas.length) {
+    avisar(novas.length === 1 ? `Nova solicitação: ${novas[0].nome}` : `${novas.length} novas solicitações`);
+    try { navigator.vibrate?.(120); } catch {}
+  }
 
-  // Histórico
-  $("#lista-historico").innerHTML = estado.historico.length ? estado.historico.map((h) => `
-    <li><span><strong>${esc(h.nome)}</strong></span><span class="muted">${dataHora(h.quando)} · ${esc(h.origem)}</span></li>`).join("")
-    : `<li class="vazio">Nenhuma Micem registrada ainda.</li>`;
+  renderHistorico();
+}
+
+// 6. Histórico agrupado por dia, com tempo relativo. Redesenhado a cada minuto para o "há X min" andar.
+function renderHistorico() {
+  if (!estado) return;
+  let dia = null;
+  $("#lista-historico").innerHTML = estado.historico.length ? estado.historico.map((h) => {
+    const d = rotuloDia(h.quando);
+    const grupo = d !== dia ? `<li class="grupo">${esc(d)}</li>` : "";
+    dia = d;
+    return `${grupo}<li>
+      <span class="hist-nome"><span class="mini" aria-hidden="true">${esc(iniciais(h.nome))}</span>${esc(h.nome)}</span>
+      <span class="hist-quando muted" title="${esc(dataHora(h.quando))}">${esc(tempoRelativo(h.quando))}<small>${h.origem === "Mr. Micem" ? "marcada pelo Mr. Micem" : "aprovada"}</small></span>
+    </li>`;
+  }).join("") : `<li class="vazio">Nenhuma Micem registrada ainda.</li>`;
 }
 
 function sairCentral() {
@@ -478,6 +637,8 @@ $("#btn-cancelar").addEventListener("click", () => $("#dlg-login").close());
 $("#form-login").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const senha = $("#senha").value;
+  const botao = ev.submitter || $("#form-login button[type=submit]");
+  botao.disabled = true; botao.classList.add("carregando");
   try {
     const r = await fetch("/api", { method: "POST", headers: { "content-type": "application/json", "x-central-senha": encodeURIComponent(senha) }, body: JSON.stringify({ tipo: "login" }) });
     const dados = await r.json().catch(() => null);
@@ -489,6 +650,7 @@ $("#form-login").addEventListener("submit", async (ev) => {
     abrirTela("fila");
     avisar("Acesso do Mr. Micem liberado.");
   } catch (e) { avisar(e.message, "erro"); }
+  finally { botao.disabled = false; botao.classList.remove("carregando"); }
 });
 
 $("#festa-ok").addEventListener("click", fecharFesta);
@@ -497,46 +659,59 @@ document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !$("#f
 
 $("#btn-solicitar").addEventListener("click", () => {
   if (!tecnicoAtual) return;
-  executar({ tipo: "solicitar", tecnicoId: tecnicoAtual }, false, "Solicitação enviada para o Mr. Micem.");
+  executar({ tipo: "solicitar", tecnicoId: tecnicoAtual }, false, "Solicitação enviada para o Mr. Micem.", { botao: $("#btn-solicitar") });
 });
 
 $("#form-adicionar").addEventListener("submit", (ev) => {
   ev.preventDefault();
   const nome = $("#novo-nome").value.trim();
   if (!nome) return;
-  executar({ tipo: "adicionar", nome }, true, `${nome} adicionado ao fim da fila.`).then(() => ($("#novo-nome").value = ""));
+  executar({ tipo: "adicionar", nome }, true, `${nome} adicionado ao fim da fila.`, { botao: ev.submitter || $("#form-adicionar button") })
+    .then((ok) => { if (ok) $("#novo-nome").value = ""; });
 });
 
-document.addEventListener("click", (ev) => {
+document.addEventListener("click", async (ev) => {
   const b = ev.target.closest("button[data-acao]");
   if (!b || !estado) return;
   const id = b.dataset.id;
   const nome = (estado.fila.find((t) => t.id === id) || {}).nome;
+  const solic = estado.solicitacoes.find((s) => s.id === id);
+  const opts = { botao: b };
   switch (b.dataset.acao) {
-    case "aprovar": return executar({ tipo: "aprovar", solicitacaoId: id }, true, "Micem aprovada.");
-    case "recusar": return executar({ tipo: "recusar", solicitacaoId: id }, true, "Solicitação recusada.");
-    case "feita": return executar({ tipo: "marcarFeita", tecnicoId: id }, true, `${nome} foi para o fim da fila.`);
+    case "aprovar": return executar({ tipo: "aprovar", solicitacaoId: id }, true, `Micem de ${solic?.nome ?? "técnico"} aprovada.`, { ...opts, sair: b.closest("li") });
+    case "recusar": return executar({ tipo: "recusar", solicitacaoId: id }, true, "Solicitação recusada.", { ...opts, sair: b.closest("li") });
+    case "feita": return executar({ tipo: "marcarFeita", tecnicoId: id }, true, `${nome} foi para o fim da fila.`, opts);
     case "remover":
-      if (!confirm(`Remover ${nome} do rodízio?`)) return;
-      return executar({ tipo: "remover", tecnicoId: id }, true, `${nome} removido.`);
+      if (!(await confirmar(`Remover ${nome}?`, `${nome} sai do rodízio. Dá para desfazer logo em seguida.`, "Remover"))) return;
+      return executar({ tipo: "remover", tecnicoId: id }, true, `${nome} removido.`, opts);
     case "subir":
     case "descer": {
       const fila = estado.fila.map((t) => t.id);
       const i = fila.indexOf(id), j = b.dataset.acao === "subir" ? i - 1 : i + 1;
       if (j < 0 || j >= fila.length) return;
       [fila[i], fila[j]] = [fila[j], fila[i]];
-      return executar({ tipo: "reordenar", fila }, true);
+      return executar({ tipo: "reordenar", fila }, true, null, opts);
     }
   }
 });
 document.addEventListener("change", (ev) => {
   const s = ev.target.closest("select[data-acao='ausencia']");
   if (!s) return;
-  executar({ tipo: "ausencia", tecnicoId: s.dataset.id, ausencia: s.value || null }, true);
+  s.disabled = true;
+  executar({ tipo: "ausencia", tecnicoId: s.dataset.id, ausencia: s.value || null }, true).finally(() => { if (s.isConnected) s.disabled = false; });
 });
 
-carregar();
-setInterval(() => { if (!document.hidden && !document.querySelector("dialog[open]")) carregar(); }, 10000);
+// 4. Atualiza a cada 10 s, ou a cada 4 s enquanto houver solicitação esperando o Mr. Micem.
+function agendar() {
+  clearTimeout(agendar.t);
+  const rapido = estado && estado.solicitacoes.length > 0;
+  agendar.t = setTimeout(async () => {
+    if (!document.hidden && !document.querySelector("dialog[open]")) await carregar();
+    agendar();
+  }, rapido ? 4000 : 10000);
+}
+carregar().then(agendar);
+setInterval(renderHistorico, 60000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) carregar(); });
 </script>
 </body>
