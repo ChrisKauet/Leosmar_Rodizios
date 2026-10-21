@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Rodízio da Micem</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔁</text></svg>">
+<link rel="icon" id="favicon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔁</text></svg>">
 <style>
   :root {
     --bg: #eef2f7; --card: #ffffff; --text: #16202c; --muted: #5d6b7c; --line: #dde3eb;
@@ -188,16 +188,28 @@
     #lista-solicitacoes li.nova { animation: none; background: var(--warn-soft); }
   }
 
+  /* 10. Contador de pendentes do Mr. Micem */
+  button.selo { min-height: 0; border: 0; padding: 5px 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
+  .contador { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; display: inline-grid; place-items: center;
+    background: var(--danger); color: #fff; font-size: 12px; font-weight: 800; box-shadow: 0 0 0 2px var(--card); }
+  .contador.pulou { animation: pulou .5s cubic-bezier(.2,1.6,.4,1); }
+  @keyframes pulou { from { transform: scale(1.6); } }
+  .cab-solic { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .cab-solic h2 { margin: 0 !important; }
+  .cab-solic button { white-space: nowrap; flex: none; }
+  @media (max-width: 420px) { body.central header .titulo-txt { display: none; } }
+  #sec-solicitacoes { scroll-margin-top: calc(76px + env(safe-area-inset-top)); }
+
   #aviso { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); z-index: 10; }
   #aviso:empty { display: none; }
 </style>
 </head>
 <body>
 <header>
-  <h1><span class="logo">🔁</span>Rodízio da Micem</h1>
+  <h1><span class="logo">🔁</span><span class="titulo-txt">Rodízio da Micem</span></h1>
   <div class="linha">
     <span id="quem" class="muted"></span>
-    <span id="selo-central" class="tag prox" hidden>Mr. Micem</span>
+    <button id="selo-central" class="tag prox selo" hidden title="Ver solicitações pendentes">Mr. Micem<span class="contador" id="contador" hidden></span></button>
     <button id="btn-trocar" class="discreto" hidden>Trocar</button>
   </div>
 </header>
@@ -227,8 +239,11 @@
     <button class="primario grande" id="btn-solicitar" disabled>✅ Fiz a Micem</button>
   </section>
 
-  <section class="card central-only">
-    <h2>Solicitações pendentes</h2>
+  <section class="card central-only" id="sec-solicitacoes">
+    <div class="cab-solic">
+      <h2>Solicitações pendentes</h2>
+      <button id="btn-som" class="discreto" type="button"></button>
+    </div>
     <ul class="simples" id="lista-solicitacoes"></ul>
   </section>
 
@@ -334,6 +349,55 @@ function confirmar(titulo, texto, rotulo) {
   d.returnValue = "";
   d.showModal();
   return new Promise((ok) => d.addEventListener("close", () => ok(d.returnValue === "sim"), { once: true }));
+}
+
+// 10. Avisos de solicitações pendentes para o Mr. Micem: número no título da aba, bolinha
+// vermelha no ícone da aba, contador no selo do topo, número no ícone do app instalado e um
+// "plim" quando chega solicitação nova (dá para desligar; fica salvo no aparelho).
+const FAVICON = $("#favicon").href;
+const FAVICON_ALERTA = "data:image/svg+xml," + encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔁</text>" +
+  "<circle cx='76' cy='24' r='22' fill='#dc2626' stroke='#fff' stroke-width='6'/></svg>");
+let somLigado = lerStorage(localStorage, "som-micem") !== "0";
+let audio = null;
+let pendentesAntes = 0;
+
+function atualizarPendentes() {
+  const n = senhaCentral && estado ? estado.solicitacoes.length : 0;
+  document.title = n ? `(${n}) Rodízio da Micem` : "Rodízio da Micem";
+  $("#favicon").href = n ? FAVICON_ALERTA : FAVICON;
+  const c = $("#contador");
+  c.hidden = !n;
+  c.textContent = n;
+  if (n > pendentesAntes) { c.classList.remove("pulou"); void c.offsetWidth; c.classList.add("pulou"); }
+  pendentesAntes = n;
+  try { n ? navigator.setAppBadge?.(n)?.catch(() => {}) : navigator.clearAppBadge?.()?.catch(() => {}); } catch {}
+  $("#btn-som").textContent = somLigado ? "🔔 Som" : "🔕 Sem som";
+  $("#btn-som").setAttribute("aria-pressed", somLigado);
+  $("#btn-som").title = somLigado ? "Tocar um aviso quando chegar solicitação: ligado" : "Tocar um aviso quando chegar solicitação: desligado";
+}
+
+// O navegador só libera som depois de um toque na página, então o áudio é preparado no primeiro toque.
+function prepararAudio() {
+  try {
+    audio ??= new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === "suspended") audio.resume();
+  } catch {}
+}
+document.addEventListener("pointerdown", prepararAudio, { passive: true });
+
+function plim() {
+  if (!somLigado || !audio || audio.state !== "running") return;
+  const t = audio.currentTime;
+  [[880, 0], [1320, .13]].forEach(([freq, atraso]) => {
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = "sine"; o.frequency.value = freq;
+    g.gain.setValueAtTime(0, t + atraso);
+    g.gain.linearRampToValueAtTime(.25, t + atraso + .015);
+    g.gain.exponentialRampToValueAtTime(.001, t + atraso + .35);
+    o.connect(g).connect(audio.destination);
+    o.start(t + atraso); o.stop(t + atraso + .4);
+  });
 }
 
 // 6. "agora", "há 5 min" ou a hora; e o rótulo do dia para agrupar o histórico.
@@ -576,7 +640,9 @@ function render() {
         <button class="perigo" data-acao="recusar" data-id="${s.id}">Recusar</button>
       </span>
     </li>`).join("") : `<li class="vazio">Nenhuma solicitação no momento.</li>`);
+  atualizarPendentes();
   if (novas.length) {
+    plim();
     avisar(novas.length === 1 ? `Nova solicitação: ${novas[0].nome}` : `${novas.length} novas solicitações`);
     try { navigator.vibrate?.(120); } catch {}
   }
@@ -601,6 +667,7 @@ function renderHistorico() {
 
 function sairCentral() {
   senhaCentral = null;
+  pendentesAntes = 0;
   gravarStorage(sessionStorage, "central-senha", null);
   render();
 }
@@ -612,7 +679,7 @@ function abrirTela(nova) {
 }
 
 $("#btn-trocar").addEventListener("click", () => {
-  if (senhaCentral) { senhaCentral = null; gravarStorage(sessionStorage, "central-senha", null); }
+  if (senhaCentral) { senhaCentral = null; pendentesAntes = 0; gravarStorage(sessionStorage, "central-senha", null); }
   abrirTela("selecao");
 });
 $("#btn-so-ver").addEventListener("click", () => {
@@ -651,6 +718,18 @@ $("#form-login").addEventListener("submit", async (ev) => {
     avisar("Acesso do Mr. Micem liberado.");
   } catch (e) { avisar(e.message, "erro"); }
   finally { botao.disabled = false; botao.classList.remove("carregando"); }
+});
+
+$("#selo-central").addEventListener("click", () => {
+  if (tela !== "fila") abrirTela("fila");
+  $("#sec-solicitacoes").scrollIntoView({ block: "start" });
+});
+$("#btn-som").addEventListener("click", () => {
+  somLigado = !somLigado;
+  gravarStorage(localStorage, "som-micem", somLigado ? "1" : "0");
+  prepararAudio();
+  atualizarPendentes();
+  if (somLigado) setTimeout(plim, 50);
 });
 
 $("#festa-ok").addEventListener("click", fecharFesta);
